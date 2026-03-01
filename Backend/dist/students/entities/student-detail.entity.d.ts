@@ -3,6 +3,8 @@ export declare class StudentDetail {
     name: string;
     email: string;
     password: string;
+    branch: string;
+    college: string;
     resume: string | null;
     numberOfResumes: number;
     aiCredit: number;

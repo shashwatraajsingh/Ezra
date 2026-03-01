@@ -10,6 +10,8 @@ class CreateStudentDetails1740788745000 {
                 \`name\`                VARCHAR(255)    NOT NULL,
                 \`email\`               VARCHAR(255)    NOT NULL,
                 \`password\`            VARCHAR(255)    NOT NULL,
+                \`branch\`              VARCHAR(255)    NOT NULL,
+                \`college\`             VARCHAR(255)    NOT NULL,
                 \`resume\`              VARCHAR(500)    NULL        DEFAULT NULL
                                         COMMENT 'File path or cloud URL to the uploaded resume',
                 \`number_of_resumes\`   INT UNSIGNED    NOT NULL    DEFAULT 0

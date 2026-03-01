@@ -12,6 +12,7 @@ const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const auth_module_1 = require("./auth/auth.module");
 const student_detail_entity_1 = require("./students/entities/student-detail.entity");
 let AppModule = class AppModule {
 };
@@ -39,7 +40,7 @@ exports.AppModule = AppModule = __decorate([
                     logging: config.get('NODE_ENV') !== 'production',
                 }),
             }),
-            typeorm_1.TypeOrmModule.forFeature([student_detail_entity_1.StudentDetail]),
+            auth_module_1.AuthModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

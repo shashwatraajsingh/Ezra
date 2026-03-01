@@ -17,28 +17,25 @@ export class StudentDetail {
     @Column({ type: 'varchar', length: 255, unique: true })
     email: string;
 
-    /**
-     * Store a bcrypt/argon2 hash — never a plain-text password.
-     */
-    @Column({ type: 'varchar', length: 255 })
+    /** Stored as a bcrypt hash — never plain text. */
+    @Column({ type: 'varchar', length: 255, select: false })
     password: string;
 
-    /**
-     * File path or cloud URL to the most recently uploaded resume.
-     * Nullable until the student uploads one.
-     */
+    @Column({ type: 'varchar', length: 255 })
+    branch: string;
+
+    @Column({ type: 'varchar', length: 255 })
+    college: string;
+
+    /** File path or cloud URL to the most recently uploaded resume. */
     @Column({ type: 'varchar', length: 500, nullable: true, default: null })
     resume: string | null;
 
-    /**
-     * Running count of all resumes the student has uploaded.
-     */
+    /** Running count of all resumes the student has uploaded. */
     @Column({ type: 'int', unsigned: true, default: 0, name: 'number_of_resumes' })
     numberOfResumes: number;
 
-    /**
-     * AI credits available to the student for AI-powered features.
-     */
+    /** AI credits available for AI-powered features. */
     @Column({ type: 'int', unsigned: true, default: 0, name: 'ai_credit' })
     aiCredit: number;
 

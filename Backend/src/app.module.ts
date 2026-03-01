@@ -1,22 +1,21 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { StudentDetail } from './students/entities/student-detail.entity';
 
 @Module({
   imports: [
     // ── 1. Config ──────────────────────────────────────────────────────────
-    // Makes the .env file available globally; validates on startup.
     ConfigModule.forRoot({
-      isGlobal: true,
+      isGlobal: true,   // available in every module without re-importing
       envFilePath: '.env',
     }),
 
     // ── 2. Database ────────────────────────────────────────────────────────
-    // forRootAsync lets us inject ConfigService so values come from .env,
-    // not from hard-coded strings scattered across the codebase.
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -29,13 +28,13 @@ import { StudentDetail } from './students/entities/student-detail.entity';
         database: config.get<string>('DB_NAME', 'ezra_db'),
         entities: [StudentDetail],
         migrations: ['dist/migrations/*.js'],
-        synchronize: false, // Never true in production — use migrations.
+        synchronize: false, // Never true in production — use migrations instead.
         logging: config.get<string>('NODE_ENV') !== 'production',
       }),
     }),
 
-    // ── 3. Feature modules ─────────────────────────────────────────────────
-    TypeOrmModule.forFeature([StudentDetail]),
+    // ── 3. Feature Modules ─────────────────────────────────────────────────
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

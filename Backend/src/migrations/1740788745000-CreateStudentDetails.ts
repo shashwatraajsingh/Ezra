@@ -3,20 +3,22 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Migration: CreateStudentDetails
  *
- * Creates the `student_details` table that stores core student profile data
- * used throughout the Ezra AI Resume Platform.
+ * Creates the `student_details` table — the core profile table for every student
+ * registered on the Ezra AI Resume Platform.
  *
  * Columns
  * ───────
- *  id               – Auto-increment primary key
- *  name             – Student's full name
- *  email            – Unique login identifier
- *  password         – Hashed credential (bcrypt / argon2)
- *  resume           – Path or URL to the latest uploaded resume (nullable)
+ *  id                – Auto-increment primary key
+ *  name              – Student's full name
+ *  email             – Unique login identifier (gmail or any valid e-mail)
+ *  password          – bcrypt-hashed credential (never plain text)
+ *  branch            – Academic branch / field of study
+ *  college           – Name of the student's college / university
+ *  resume            – Path or URL to the latest uploaded resume (nullable)
  *  number_of_resumes – Running count of all uploaded resumes
- *  ai_credit        – AI credits available for AI-powered features
- *  created_at       – Row creation timestamp
- *  updated_at       – Row last-update timestamp
+ *  ai_credit         – AI credits available for AI-powered features
+ *  created_at        – Row creation timestamp
+ *  updated_at        – Row last-update timestamp (auto-refreshed by DB)
  */
 export class CreateStudentDetails1740788745000 implements MigrationInterface {
     name = 'CreateStudentDetails1740788745000';
@@ -30,6 +32,8 @@ export class CreateStudentDetails1740788745000 implements MigrationInterface {
                 \`name\`                VARCHAR(255)    NOT NULL,
                 \`email\`               VARCHAR(255)    NOT NULL,
                 \`password\`            VARCHAR(255)    NOT NULL,
+                \`branch\`              VARCHAR(255)    NOT NULL,
+                \`college\`             VARCHAR(255)    NOT NULL,
                 \`resume\`              VARCHAR(500)    NULL        DEFAULT NULL
                                         COMMENT 'File path or cloud URL to the uploaded resume',
                 \`number_of_resumes\`   INT UNSIGNED    NOT NULL    DEFAULT 0

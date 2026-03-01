@@ -16,6 +16,8 @@ let StudentDetail = class StudentDetail {
     name;
     email;
     password;
+    branch;
+    college;
     resume;
     numberOfResumes;
     aiCredit;
@@ -36,9 +38,17 @@ __decorate([
     __metadata("design:type", String)
 ], StudentDetail.prototype, "email", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, select: false }),
     __metadata("design:type", String)
 ], StudentDetail.prototype, "password", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
+    __metadata("design:type", String)
+], StudentDetail.prototype, "branch", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
+    __metadata("design:type", String)
+], StudentDetail.prototype, "college", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 500, nullable: true, default: null }),
     __metadata("design:type", Object)
