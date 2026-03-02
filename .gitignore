@@ -1,0 +1,36 @@
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Next.js ───────────────────────────────────────────────────────────────────
+frontend-app/.next/
+frontend-app/out/
+frontend-app/build/
+
+# ── NestJS / TypeScript build ─────────────────────────────────────────────────
+Backend/dist/
+
+# ── Uploads / compiled PDFs (user data — not in version control) ──────────────
+Backend/public/uploads/
+frontend-app/public/uploads/
+
+# ── Environment files ─────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+Backend/.env
+frontend-app/.env.local
+
+# ── Editor & OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+coverage/
+*.log
