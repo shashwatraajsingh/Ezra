@@ -1,13 +1,9 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { StudentDetail } from '../students/entities/student-detail.entity';
+import { Template } from '../templates/entities/template.entity';
+import { Resume } from '../resumes/entities/resume.entity';
 
-/**
- * Standalone DataSource used exclusively by the TypeORM CLI
- * (migration:run, migration:generate, migration:revert, etc.).
- *
- * The app itself gets its connection via AppModule → TypeOrmModule.forRootAsync().
- */
 export const AppDataSource = new DataSource({
     type: 'mysql',
     host: process.env.DB_HOST ?? 'localhost',
@@ -15,7 +11,7 @@ export const AppDataSource = new DataSource({
     username: process.env.DB_USERNAME ?? 'root',
     password: process.env.DB_PASSWORD ?? 'secret',
     database: process.env.DB_NAME ?? 'ezra_db',
-    entities: [StudentDetail],
+    entities: [StudentDetail, Template, Resume],
     migrations: ['src/migrations/*.ts'],
     synchronize: false,
     logging: process.env.NODE_ENV !== 'production',

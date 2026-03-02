@@ -5,17 +5,22 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { TemplatesModule } from './templates/templates.module';
+import { ResumesModule } from './resumes/resumes.module';
+
 import { StudentDetail } from './students/entities/student-detail.entity';
+import { Template } from './templates/entities/template.entity';
+import { Resume } from './resumes/entities/resume.entity';
 
 @Module({
   imports: [
-    // ── 1. Config ──────────────────────────────────────────────────────────
+    // ── 1. Config ─────────────────────────────────────────────────────────
     ConfigModule.forRoot({
-      isGlobal: true,   // available in every module without re-importing
+      isGlobal: true,
       envFilePath: '.env',
     }),
 
-    // ── 2. Database ────────────────────────────────────────────────────────
+    // ── 2. Database ───────────────────────────────────────────────────────
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -26,15 +31,17 @@ import { StudentDetail } from './students/entities/student-detail.entity';
         username: config.get<string>('DB_USERNAME', 'root'),
         password: config.get<string>('DB_PASSWORD', 'secret'),
         database: config.get<string>('DB_NAME', 'ezra_db'),
-        entities: [StudentDetail],
+        entities: [StudentDetail, Template, Resume],
         migrations: ['dist/migrations/*.js'],
-        synchronize: false, // Never true in production — use migrations instead.
+        synchronize: false,
         logging: config.get<string>('NODE_ENV') !== 'production',
       }),
     }),
 
-    // ── 3. Feature Modules ─────────────────────────────────────────────────
+    // ── 3. Feature Modules ────────────────────────────────────────────────
     AuthModule,
+    TemplatesModule,
+    ResumesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
