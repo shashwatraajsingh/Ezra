@@ -17,7 +17,7 @@ export class StudentDetail {
     @Column({ type: 'varchar', length: 255, unique: true })
     email: string;
 
-    /** Stored as a bcrypt hash — never plain text. */
+    
     @Column({ type: 'varchar', length: 255, select: false })
     password: string;
 
