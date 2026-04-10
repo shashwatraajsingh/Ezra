@@ -13,7 +13,11 @@ const typeorm_1 = require("@nestjs/typeorm");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const auth_module_1 = require("./auth/auth.module");
+const templates_module_1 = require("./templates/templates.module");
+const resumes_module_1 = require("./resumes/resumes.module");
 const student_detail_entity_1 = require("./students/entities/student-detail.entity");
+const template_entity_1 = require("./templates/entities/template.entity");
+const resume_entity_1 = require("./resumes/entities/resume.entity");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -34,13 +38,15 @@ exports.AppModule = AppModule = __decorate([
                     username: config.get('DB_USERNAME', 'root'),
                     password: config.get('DB_PASSWORD', 'secret'),
                     database: config.get('DB_NAME', 'ezra_db'),
-                    entities: [student_detail_entity_1.StudentDetail],
+                    entities: [student_detail_entity_1.StudentDetail, template_entity_1.Template, resume_entity_1.Resume],
                     migrations: ['dist/migrations/*.js'],
                     synchronize: false,
                     logging: config.get('NODE_ENV') !== 'production',
                 }),
             }),
             auth_module_1.AuthModule,
+            templates_module_1.TemplatesModule,
+            resumes_module_1.ResumesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

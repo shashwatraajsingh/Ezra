@@ -3,6 +3,11 @@ import { Strategy } from 'passport-jwt';
 export interface JwtPayload {
     sub: number;
     email: string;
+    name?: string;
+    branch?: string;
+    college?: string;
+    aiCredit?: number;
+    numberOfResumes?: number;
 }
 declare const JwtStrategy_base: new (...args: [opt: import("passport-jwt").StrategyOptionsWithRequest] | [opt: import("passport-jwt").StrategyOptionsWithoutRequest]) => Strategy & {
     validate(...args: any[]): unknown;

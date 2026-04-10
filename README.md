@@ -6,7 +6,7 @@ Ezra is a full-stack web application built for engineering students who want to 
 
 ## What it does
 
-- **Authentication** — Students sign up with their name, email, branch, and college. Passwords are hashed with bcrypt and sessions are managed through a signed JWT.
+- **Authentication** — Students sign up with their name, email, branch, and college. Passwords are hashed with Argon2id and sessions are managed through a signed JWT.
 - **Template Gallery** — Browse prebuilt LaTeX resume templates or upload your own PDF/DOCX/TeX file. Uploaded files are processed by an AI pipeline that reverse-engineers the layout, generates clean LaTeX, and extracts editable placeholders.
 - **Resume Editor** — A full-screen split-view editor with a LaTeX pane on the left and a compiled PDF preview on the right. Changes auto-save every three seconds. A Recompile button triggers server-side `pdflatex` compilation and renders the result inline.
 - **Dashboard** — Displays your profile, AI credit balance, resume list with ATS scores, and uploaded templates, all in one place.
@@ -23,6 +23,7 @@ Ezra is a full-stack web application built for engineering students who want to 
 | Backend | NestJS 11, TypeScript |
 | Database | MySQL 8, TypeORM |
 | Auth | Passport.js — Local strategy + JWT (Bearer) |
+| Password hashing | Argon2id (`argon2` npm package) |
 | File handling | Multer (disk storage) |
 | PDF compilation | `pdflatex` (server-side, via Node `child_process`) |
 
@@ -199,7 +200,7 @@ student_details          templates               resumes
 id (PK)                  id (PK)                 id (PK)
 name                     name                    title
 email (unique)           description             latex_source
-password (bcrypt)        kind (enum)             field_values (JSON)
+password (argon2id)        kind (enum)             field_values (JSON)
 branch                   file_ref                compiled_pdf_path
 college                  latex_source            ats_score
 resume                   placeholders (JSON)     status (enum)

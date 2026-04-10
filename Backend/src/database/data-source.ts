@@ -1,5 +1,9 @@
 import 'reflect-metadata';
+import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
+
+// Load .env before anything reads process.env (TypeORM CLI context)
+config();
 import { StudentDetail } from '../students/entities/student-detail.entity';
 import { Template } from '../templates/entities/template.entity';
 import { Resume } from '../resumes/entities/resume.entity';

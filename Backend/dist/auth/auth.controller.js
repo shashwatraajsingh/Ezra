@@ -15,37 +15,25 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
-const signup_dto_1 = require("./dto/signup.dto");
-const local_auth_guard_1 = require("./guards/local-auth.guard");
+const google_signin_dto_1 = require("./dto/google-signin.dto");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
         this.authService = authService;
     }
-    signUp(dto) {
-        return this.authService.signUp(dto);
-    }
-    signIn(req) {
-        return this.authService.signIn(req.user);
+    signInWithGoogle(dto) {
+        return this.authService.signInWithGoogle(dto.idToken);
     }
 };
 exports.AuthController = AuthController;
 __decorate([
-    (0, common_1.Post)('signup'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.Post)('google'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [signup_dto_1.SignUpDto]),
+    __metadata("design:paramtypes", [google_signin_dto_1.GoogleSignInDto]),
     __metadata("design:returntype", void 0)
-], AuthController.prototype, "signUp", null);
-__decorate([
-    (0, common_1.UseGuards)(local_auth_guard_1.LocalAuthGuard),
-    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
-    (0, common_1.Post)('signin'),
-    __param(0, (0, common_1.Request)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], AuthController.prototype, "signIn", null);
+], AuthController.prototype, "signInWithGoogle", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

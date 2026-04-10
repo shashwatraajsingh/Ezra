@@ -11,7 +11,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *  id                – Auto-increment primary key
  *  name              – Student's full name
  *  email             – Unique login identifier (gmail or any valid e-mail)
- *  password          – bcrypt-hashed credential (never plain text)
+ *  password          – argon2id-hashed credential (never plain text)
  *  branch            – Academic branch / field of study
  *  college           – Name of the student's college / university
  *  resume            – Path or URL to the latest uploaded resume (nullable)

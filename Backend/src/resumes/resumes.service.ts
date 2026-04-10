@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
@@ -19,11 +19,16 @@ import { Template } from '../templates/entities/template.entity';
 import { CreateResumeDto } from './dto/create-resume.dto';
 import { UpdateResumeDto } from './dto/update-resume.dto';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /** pdflatex is run twice so cross-references resolve correctly. */
 const PDFLATEX_FLAGS = '-interaction=nonstopmode -halt-on-error -file-line-error';
 const COMPILE_TIMEOUT_MS = 60_000;
+const PDFLATEX_CANDIDATES = [
+    process.env.PDFLATEX_BIN,
+    '/usr/bin/pdflatex',
+    'pdflatex',
+].filter(Boolean) as string[];
 
 /** Extracts the most useful lines from pdflatex stderr/stdout. */
 function extractLatexError(output: string): string {
@@ -63,6 +68,23 @@ function sanitizeProjectFilePath(fileName: string): string {
         throw new BadRequestException(`Invalid project file path: ${fileName}`);
     }
     return normalized;
+}
+
+async function resolvePdflatexBinary(): Promise<string> {
+    for (const candidate of PDFLATEX_CANDIDATES) {
+        if (candidate.includes('/')) {
+            try {
+                await fsp.access(candidate, fs.constants.X_OK);
+                return candidate;
+            } catch {
+                continue;
+            }
+        }
+
+        return candidate;
+    }
+
+    throw new Error('pdflatex executable not found');
 }
 
 @Injectable()
@@ -251,10 +273,15 @@ export class ResumesService {
 
             // Run pdflatex twice: first pass builds the document,
             // second pass resolves forward references and headers.
-            const pdflatexCmd = `pdflatex ${PDFLATEX_FLAGS} -output-directory="${tmpDir}" "${texFile}"`;
+            const pdflatexBin = await resolvePdflatexBinary();
+            const pdflatexArgs = [
+                ...PDFLATEX_FLAGS.split(' '),
+                `-output-directory=${tmpDir}`,
+                texFile,
+            ];
 
             for (let pass = 1; pass <= 2; pass++) {
-                const { stdout, stderr } = await execAsync(pdflatexCmd, {
+                const { stdout, stderr } = await execFileAsync(pdflatexBin, pdflatexArgs, {
                     timeout: COMPILE_TIMEOUT_MS,
                     maxBuffer: 10 * 1024 * 1024, // 10 MB output buffer
                     cwd: tmpDir, // ensure relative \input{} paths work

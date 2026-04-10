@@ -118,6 +118,10 @@ function getMainLatex(files: ResumeProjectFile[]) {
         ?? "";
 }
 
+function isUnauthorizedError(error: unknown) {
+    return error instanceof Error && error.message.includes("(401)");
+}
+
 function EmptyPreview({ isCompiling, compileError }: { isCompiling: boolean; compileError: string | null }) {
     return (
         <div className="flex h-[28rem] items-center justify-center rounded-[28px] border border-white/10 bg-[#f7f7f3] p-8 text-center text-zinc-900 shadow-[0_22px_55px_rgba(0,0,0,0.28)]">
@@ -213,6 +217,10 @@ export default function NewProjectPage() {
             } catch (err) {
                 if (!cancelled) {
                     sessionStorage.removeItem(STORAGE_KEY);
+                    if (isUnauthorizedError(err)) {
+                        router.replace("/auth/login");
+                        return;
+                    }
                     setError(err instanceof Error ? err.message : "Unable to open project workspace.");
                 }
             } finally {
@@ -273,6 +281,11 @@ export default function NewProjectPage() {
             setSaveMessage("Saved");
             window.setTimeout(() => setSaveMessage(null), 1800);
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                sessionStorage.removeItem(STORAGE_KEY);
+                router.replace("/auth/login");
+                return;
+            }
             setError(err instanceof Error ? err.message : "Save failed.");
         } finally {
             setIsSaving(false);
@@ -331,6 +344,11 @@ export default function NewProjectPage() {
             setResume(compiled);
             setError(compiled.compileError);
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                sessionStorage.removeItem(STORAGE_KEY);
+                router.replace("/auth/login");
+                return;
+            }
             setError(err instanceof Error ? err.message : "Compile failed.");
         } finally {
             setIsCompiling(false);

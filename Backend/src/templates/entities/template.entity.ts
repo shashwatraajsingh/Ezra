@@ -39,11 +39,11 @@ export class Template {
      * For prebuilt: thumbnail image path relative to /public.
      * For user_uploaded: path/URL of the original file (PDF/DOCX).
      */
-    @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+    @Column({ type: 'varchar', length: 500, nullable: true, default: null, name: 'file_ref' })
     fileRef: string | null;
 
     /** Final LaTeX source — populated by AI pipeline for uploaded templates */
-    @Column({ type: 'longtext', nullable: true, default: null })
+    @Column({ type: 'longtext', nullable: true, default: null, name: 'latex_source' })
     latexSource: string | null;
 
     /**

@@ -20,7 +20,10 @@ export class AuthService {
     ) { }
 
     async signInWithGoogle(idToken: string): Promise<{ accessToken: string }> {
-        const decoded = await getFirebaseAdminAuth().verifyIdToken(idToken).catch(() => {
+        const decoded = await getFirebaseAdminAuth().verifyIdToken(idToken).catch((error: unknown) => {
+            if (error instanceof Error && error.message.includes('Missing Firebase Admin config')) {
+                throw new InternalServerErrorException(error.message);
+            }
             throw new UnauthorizedException('Invalid Firebase ID token');
         });
 

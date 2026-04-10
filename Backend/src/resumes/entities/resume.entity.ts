@@ -33,14 +33,14 @@ export class Resume {
     title: string;
 
     /** Current LaTeX source — updated in the editor */
-    @Column({ type: 'longtext', nullable: true, default: null })
+    @Column({ type: 'longtext', nullable: true, default: null, name: 'latex_source' })
     latexSource: string | null;
 
     /**
      * JSON blob of field values the user has filled in.
      * Keyed by the template's placeholder keys.
      */
-    @Column({ type: 'json', nullable: true, default: null })
+    @Column({ type: 'json', nullable: true, default: null, name: 'field_values' })
     fieldValues: Record<string, string> | null;
 
     /** Optional multi-file project workspace used by the Overleaf-style editor. */
@@ -48,7 +48,7 @@ export class Resume {
     projectFiles: ResumeProjectFile[] | null;
 
     /** Path to the last successfully compiled PDF */
-    @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+    @Column({ type: 'varchar', length: 500, nullable: true, default: null, name: 'compiled_pdf_path' })
     compiledPdfPath: string | null;
 
     /** ATS compatibility score (0-100) — set by AI analysis step */
@@ -63,7 +63,7 @@ export class Resume {
     status: ResumeStatus;
 
     /** Compiler error message (if status = 'error') */
-    @Column({ type: 'text', nullable: true, default: null })
+    @Column({ type: 'text', nullable: true, default: null, name: 'compile_error' })
     compileError: string | null;
 
     @ManyToOne(() => StudentDetail, { onDelete: 'CASCADE' })

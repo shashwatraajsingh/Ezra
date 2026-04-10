@@ -4,15 +4,46 @@ import { firebaseAuth } from "@/lib/firebase/client";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const AUTH_CHANGED_EVENT = "ezra-auth-changed";
 
-/** Returns the stored JWT token from localStorage (any key we use). */
-export function getToken(): string {
-    if (typeof window === "undefined") return "";
+function readStoredToken(): string {
     return (
         localStorage.getItem("access_token") ||
         localStorage.getItem("token") ||
         localStorage.getItem("jwt") ||
         ""
     );
+}
+
+function isTokenValid(token: string): boolean {
+    if (!token) return false;
+
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+
+    try {
+        const payload = JSON.parse(atob(parts[1])) as { exp?: number };
+        if (!payload.exp) return true;
+        return payload.exp * 1000 > Date.now();
+    } catch {
+        return false;
+    }
+}
+
+/** Returns the stored JWT token from localStorage (any key we use). */
+export function getToken(): string {
+    if (typeof window === "undefined") return "";
+
+    const token = readStoredToken();
+    if (!token) return "";
+
+    if (!isTokenValid(token)) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("token");
+        localStorage.removeItem("jwt");
+        window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+        return "";
+    }
+
+    return token;
 }
 
 export function authHeaders(): Record<string, string> {

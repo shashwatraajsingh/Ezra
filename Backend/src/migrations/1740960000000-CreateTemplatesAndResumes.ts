@@ -15,7 +15,7 @@ export class CreateTemplatesAndResumes1740960000000
                 \`file_ref\`     VARCHAR(500) NULL DEFAULT NULL,
                 \`latex_source\` LONGTEXT NULL DEFAULT NULL,
                 \`placeholders\` JSON NULL DEFAULT NULL,
-                \`student_id\`   INT NULL DEFAULT NULL,
+                \`student_id\`   INT UNSIGNED NULL DEFAULT NULL,
                 \`created_at\`   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                 \`updated_at\`   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                 PRIMARY KEY (\`id\`),

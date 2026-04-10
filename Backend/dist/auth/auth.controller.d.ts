@@ -1,15 +1,9 @@
 import { AuthService } from './auth.service';
-import { SignUpDto } from './dto/signup.dto';
-import { StudentDetail } from '../students/entities/student-detail.entity';
+import { GoogleSignInDto } from './dto/google-signin.dto';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
-    signUp(dto: SignUpDto): Promise<{
-        accessToken: string;
-    }>;
-    signIn(req: {
-        user: StudentDetail;
-    }): Promise<{
+    signInWithGoogle(dto: GoogleSignInDto): Promise<{
         accessToken: string;
     }>;
 }
