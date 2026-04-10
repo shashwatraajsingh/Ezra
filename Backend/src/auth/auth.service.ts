@@ -1,18 +1,15 @@
 import {
-    ConflictException,
     Injectable,
     InternalServerErrorException,
+    UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 
 import { StudentDetail } from '../students/entities/student-detail.entity';
-import { SignUpDto } from './dto/signup.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
-
-const BCRYPT_SALT_ROUNDS = 12;
+import { getFirebaseAdminAuth } from './firebase-admin';
 
 @Injectable()
 export class AuthService {
@@ -22,61 +19,48 @@ export class AuthService {
         private readonly jwtService: JwtService,
     ) { }
 
-    // ─── Sign Up ───────────────────────────────────────────────────────────────
-
-    async signUp(dto: SignUpDto): Promise<{ accessToken: string }> {
-        const exists = await this.studentRepo.findOne({ where: { email: dto.email } });
-
-        if (exists) {
-            throw new ConflictException('An account with this email already exists');
-        }
-
-        const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
-
-        const student = this.studentRepo.create({
-            name: dto.name,
-            email: dto.email,
-            password: hashedPassword,
-            branch: dto.branch,
-            college: dto.college,
+    async signInWithGoogle(idToken: string): Promise<{ accessToken: string }> {
+        const decoded = await getFirebaseAdminAuth().verifyIdToken(idToken).catch(() => {
+            throw new UnauthorizedException('Invalid Firebase ID token');
         });
 
+        if (!decoded.email) {
+            throw new UnauthorizedException('Google account is missing an email address');
+        }
+
+        let student = await this.studentRepo.findOne({
+            where: { email: decoded.email },
+        });
+
+        if (!student) {
+            student = this.studentRepo.create({
+                name: decoded.name ?? decoded.email.split('@')[0],
+                email: decoded.email,
+                password: `GOOGLE_AUTH_ONLY:${decoded.uid}`,
+                branch: 'Not provided',
+                college: 'Not provided',
+            });
+        } else if (decoded.name && student.name !== decoded.name) {
+            student.name = decoded.name;
+        }
+
         const saved = await this.studentRepo.save(student).catch(() => {
-            throw new InternalServerErrorException('Could not create account. Please try again.');
+            throw new InternalServerErrorException('Could not complete Google sign-in. Please try again.');
         });
 
         return { accessToken: this.generateToken(saved) };
     }
 
-    // ─── Sign In ───────────────────────────────────────────────────────────────
-
-    /**
-     * Called by AuthController after LocalStrategy has already
-     * validated the credentials and attached the student to `req.user`.
-     */
-    async signIn(student: StudentDetail): Promise<{ accessToken: string }> {
-        return { accessToken: this.generateToken(student) };
-    }
-
-    // ─── Credential Validation (used by LocalStrategy) ─────────────────────────
-
-    async validateStudent(email: string, password: string): Promise<StudentDetail | null> {
-        const student = await this.studentRepo
-            .createQueryBuilder('s')
-            .addSelect('s.password') // password has select:false on the entity
-            .where('s.email = :email', { email })
-            .getOne();
-
-        if (!student) return null;
-
-        const passwordMatches = await bcrypt.compare(password, student.password);
-        return passwordMatches ? student : null;
-    }
-
-    // ─── Private Helpers ───────────────────────────────────────────────────────
-
     private generateToken(student: StudentDetail): string {
-        const payload: JwtPayload = { sub: student.id, email: student.email };
+        const payload: JwtPayload = {
+            sub: student.id,
+            email: student.email,
+            name: student.name,
+            branch: student.branch,
+            college: student.college,
+            aiCredit: student.aiCredit,
+            numberOfResumes: student.numberOfResumes,
+        };
         return this.jwtService.sign(payload);
     }
 }

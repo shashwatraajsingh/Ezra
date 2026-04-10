@@ -1,25 +1,82 @@
 import {
     BadRequestException,
     Injectable,
+    Logger,
     NotFoundException,
+    StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import * as fsp from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { Resume, ResumeStatus } from './entities/resume.entity';
+import { Resume, ResumeProjectFile, ResumeStatus } from './entities/resume.entity';
 import { Template } from '../templates/entities/template.entity';
 import { CreateResumeDto } from './dto/create-resume.dto';
 import { UpdateResumeDto } from './dto/update-resume.dto';
 
 const execAsync = promisify(exec);
 
+/** pdflatex is run twice so cross-references resolve correctly. */
+const PDFLATEX_FLAGS = '-interaction=nonstopmode -halt-on-error -file-line-error';
+const COMPILE_TIMEOUT_MS = 60_000;
+
+/** Extracts the most useful lines from pdflatex stderr/stdout. */
+function extractLatexError(output: string): string {
+    const lines = output.split('\n');
+    const errorLines = lines.filter(
+        (l) => l.startsWith('!') || l.match(/^.*:\d+:/) || l.includes('Error'),
+    );
+    return (errorLines.length > 0 ? errorLines : lines)
+        .slice(0, 20)
+        .join('\n')
+        .trim()
+        .slice(0, 2000);
+}
+
+/** Replace {{key}} tokens with their values from the field map. */
+function interpolate(latex: string, fields: Record<string, string> | null): string {
+    if (!fields) return latex;
+    return Object.entries(fields).reduce(
+        (src, [key, val]) => src.replaceAll(`{{${key}}}`, val),
+        latex,
+    );
+}
+
+function findMainProjectFile(projectFiles: ResumeProjectFile[] | null): ResumeProjectFile | null {
+    if (!projectFiles?.length) return null;
+
+    return (
+        projectFiles.find((file) => file.name === 'main.tex')
+        ?? projectFiles.find((file) => file.language === 'latex')
+        ?? null
+    );
+}
+
+function sanitizeProjectFilePath(fileName: string): string {
+    const normalized = path.posix.normalize(fileName).replace(/^\/+/, '');
+    if (!normalized || normalized.startsWith('..') || normalized.includes('\0')) {
+        throw new BadRequestException(`Invalid project file path: ${fileName}`);
+    }
+    return normalized;
+}
+
 @Injectable()
 export class ResumesService {
+    private readonly logger = new Logger(ResumesService.name);
+
+    /**
+     * Deduplication map: key = `${studentId}:${resumeId}`
+     * Value = the in-flight compile promise.
+     * Prevents a user from queueing N identical compile jobs by clicking
+     * Recompile repeatedly.
+     */
+    private readonly compileJobs = new Map<string, Promise<Resume>>();
+
     constructor(
         @InjectRepository(Resume)
         private readonly resumeRepo: Repository<Resume>,
@@ -27,16 +84,21 @@ export class ResumesService {
         private readonly templateRepo: Repository<Template>,
     ) { }
 
-    /** List all resumes for a student, newest first. */
+    // ─── Queries ──────────────────────────────────────────────────────────────
+
     list(studentId: number): Promise<Resume[]> {
         return this.resumeRepo.find({
             where: { studentId },
             order: { updatedAt: 'DESC' },
             relations: ['template'],
+            select: {
+                id: true, title: true, atsScore: true, status: true,
+                compiledPdfPath: true, updatedAt: true, createdAt: true,
+                templateId: true, studentId: true, latexSource: false,
+            } as never,
         });
     }
 
-    /** Get a single resume (ownership-guarded). */
     async findOne(id: number, studentId: number): Promise<Resume> {
         const resume = await this.resumeRepo.findOne({
             where: { id, studentId },
@@ -46,16 +108,21 @@ export class ResumesService {
         return resume;
     }
 
-    /** Create a new blank resume, optionally seeded from a template. */
+    // ─── Mutations ────────────────────────────────────────────────────────────
+
     async create(studentId: number, dto: CreateResumeDto): Promise<Resume> {
-        let latexSource = dto.latexSource ?? null;
+        let latexSource: string | null = dto.latexSource ?? null;
 
         if (dto.templateId && !latexSource) {
-            const tpl = await this.templateRepo.findOne({
-                where: { id: dto.templateId },
-            });
+            const tpl = await this.templateRepo.findOne({ where: { id: dto.templateId } });
             if (!tpl) throw new NotFoundException(`Template #${dto.templateId} not found`);
             latexSource = tpl.latexSource ?? null;
+        }
+
+        const projectFiles = dto.projectFiles ?? null;
+        const mainProjectFile = findMainProjectFile(projectFiles);
+        if (!latexSource && mainProjectFile) {
+            latexSource = mainProjectFile.content;
         }
 
         const resume = this.resumeRepo.create({
@@ -63,31 +130,33 @@ export class ResumesService {
             studentId,
             templateId: dto.templateId ?? null,
             latexSource,
+            projectFiles,
             status: ResumeStatus.DRAFT,
         });
 
-        return this.resumeRepo.save(resume);
+        const saved = await this.resumeRepo.save(resume);
+        this.logger.log(`Resume #${saved.id} created for student #${studentId}`);
+        return saved;
     }
 
-    /** Update LaTeX source and/or field values. */
-    async update(
-        id: number,
-        studentId: number,
-        dto: UpdateResumeDto,
-    ): Promise<Resume> {
+    async update(id: number, studentId: number, dto: UpdateResumeDto): Promise<Resume> {
         const resume = await this.findOne(id, studentId);
 
         if (dto.title !== undefined) resume.title = dto.title;
+
+        // LaTeX edits: store as-is; interpolation happens only at compile time
         if (dto.latexSource !== undefined) resume.latexSource = dto.latexSource;
+
+        // Form field updates: store the updated map, never mutate latexSource
         if (dto.fieldValues !== undefined) {
-            resume.fieldValues = dto.fieldValues;
-            // Inject field values into LaTeX
-            if (resume.latexSource) {
-                let compiled = resume.latexSource;
-                for (const [key, val] of Object.entries(dto.fieldValues)) {
-                    compiled = compiled.replaceAll(`{{${key}}}`, val);
-                }
-                resume.latexSource = compiled;
+            resume.fieldValues = { ...resume.fieldValues, ...dto.fieldValues };
+        }
+
+        if (dto.projectFiles !== undefined) {
+            resume.projectFiles = dto.projectFiles;
+            const mainProjectFile = findMainProjectFile(dto.projectFiles);
+            if (mainProjectFile) {
+                resume.latexSource = mainProjectFile.content;
             }
         }
 
@@ -95,57 +164,175 @@ export class ResumesService {
         return this.resumeRepo.save(resume);
     }
 
-    /**
-     * Compile the LaTeX source to PDF server-side.
-     * Requires `pdflatex` to be installed on the server.
-     * Falls back gracefully with an error status if unavailable.
-     */
-    async compile(id: number, studentId: number): Promise<Resume> {
+    async remove(id: number, studentId: number): Promise<void> {
         const resume = await this.findOne(id, studentId);
 
-        if (!resume.latexSource) {
-            throw new BadRequestException('Resume has no LaTeX source to compile');
+        // Clean up compiled PDF if present
+        if (resume.compiledPdfPath) {
+            const abs = path.join(process.cwd(), 'public', resume.compiledPdfPath);
+            await fsp.rm(abs, { force: true });
         }
 
-        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezra-'));
-        const texFile = path.join(tmpDir, 'resume.tex');
-        const pdfFile = path.join(tmpDir, 'resume.pdf');
+        await this.resumeRepo.remove(resume);
+        this.logger.log(`Resume #${id} deleted by student #${studentId}`);
+    }
+
+    // ─── Compilation ─────────────────────────────────────────────────────────
+
+    /**
+     * Compiles a resume's LaTeX to PDF using pdflatex.
+     *
+     * Key guarantees:
+     *  1. Duplicate calls for the same resume return the same in-flight Promise
+     *     (deduplication via `compileJobs` map).
+     *  2. Field values are merged into the LaTeX only at compile time — the
+     *     stored `latexSource` always retains the raw template with placeholders.
+     *  3. pdflatex runs twice so cross-references/headers resolve correctly.
+     *  4. Temp directory is always cleaned up, even on error.
+     *  5. PDF is written atomically (tmp file → rename) to prevent partial reads.
+     */
+    async compile(id: number, studentId: number): Promise<Resume> {
+        const jobKey = `${studentId}:${id}`;
+
+        const existing = this.compileJobs.get(jobKey);
+        if (existing) {
+            this.logger.debug(`Reusing in-flight compile for ${jobKey}`);
+            return existing;
+        }
+
+        const job = this.runCompile(id, studentId);
+        this.compileJobs.set(jobKey, job);
 
         try {
-            fs.writeFileSync(texFile, resume.latexSource, 'utf8');
+            return await job;
+        } finally {
+            this.compileJobs.delete(jobKey);
+        }
+    }
 
-            await execAsync(
-                `pdflatex -interaction=nonstopmode -output-directory="${tmpDir}" "${texFile}"`,
-                { timeout: 30_000 },
-            );
+    private async runCompile(id: number, studentId: number): Promise<Resume> {
+        const resume = await this.findOne(id, studentId);
 
-            if (!fs.existsSync(pdfFile)) {
-                throw new Error('pdflatex exited without producing a PDF');
+        const mainProjectFile = findMainProjectFile(resume.projectFiles);
+
+        if (!resume.latexSource && !mainProjectFile) {
+            throw new BadRequestException('Resume has no LaTeX source to compile.');
+        }
+
+        const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ezra-'));
+        const pdfFile = path.join(tmpDir, 'resume.pdf');
+
+        const startedAt = Date.now();
+        this.logger.log(`Compiling resume #${id} for student #${studentId}`);
+
+        try {
+            let texFile: string;
+
+            if (mainProjectFile) {
+                for (const projectFile of resume.projectFiles ?? []) {
+                    const safeName = sanitizeProjectFilePath(projectFile.name);
+                    const absPath = path.join(tmpDir, safeName);
+                    await fsp.mkdir(path.dirname(absPath), { recursive: true });
+
+                    const content = projectFile.language === 'latex'
+                        ? interpolate(projectFile.content, resume.fieldValues)
+                        : projectFile.content;
+
+                    await fsp.writeFile(absPath, content, 'utf8');
+                }
+
+                texFile = path.join(tmpDir, sanitizeProjectFilePath(mainProjectFile.name));
+            } else {
+                // Merge form field values at compile time — never persisted into latexSource
+                const finalLatex = interpolate(resume.latexSource!, resume.fieldValues);
+                texFile = path.join(tmpDir, 'resume.tex');
+                await fsp.writeFile(texFile, finalLatex, 'utf8');
             }
 
-            // In production: move PDF to a CDN/storage bucket and store URL.
-            // For now, persist local path.
-            const dest = `/uploads/compiled/${studentId}-${id}-${Date.now()}.pdf`;
-            const destAbs = path.join(process.cwd(), 'public', dest);
-            fs.mkdirSync(path.dirname(destAbs), { recursive: true });
-            fs.copyFileSync(pdfFile, destAbs);
+            // Run pdflatex twice: first pass builds the document,
+            // second pass resolves forward references and headers.
+            const pdflatexCmd = `pdflatex ${PDFLATEX_FLAGS} -output-directory="${tmpDir}" "${texFile}"`;
 
-            resume.compiledPdfPath = dest;
+            for (let pass = 1; pass <= 2; pass++) {
+                const { stdout, stderr } = await execAsync(pdflatexCmd, {
+                    timeout: COMPILE_TIMEOUT_MS,
+                    maxBuffer: 10 * 1024 * 1024, // 10 MB output buffer
+                    cwd: tmpDir, // ensure relative \input{} paths work
+                }).catch((err: NodeJS.ErrnoException & { stdout?: string; stderr?: string }) => {
+                    throw new Error(
+                        extractLatexError((err.stdout ?? '') + (err.stderr ?? '')),
+                    );
+                });
+
+                // pdflatex exits 0 even on some errors; verify PDF was produced
+                if (pass === 2 && !fs.existsSync(pdfFile)) {
+                    throw new Error(
+                        extractLatexError(stdout + stderr),
+                    );
+                }
+            }
+
+            // Atomic write: write to a tmp name then rename
+            const destRel = `/uploads/compiled/${studentId}-${id}-${Date.now()}.pdf`;
+            const destAbs = path.join(process.cwd(), 'public', destRel);
+            const destTmp = `${destAbs}.tmp`;
+
+            await fsp.mkdir(path.dirname(destAbs), { recursive: true });
+            await fsp.copyFile(pdfFile, destTmp);
+            await fsp.rename(destTmp, destAbs);
+
+            // Delete previous compiled PDF to avoid orphaned files
+            if (resume.compiledPdfPath) {
+                const oldAbs = path.join(process.cwd(), 'public', resume.compiledPdfPath);
+                await fsp.rm(oldAbs, { force: true });
+            }
+
+            resume.compiledPdfPath = destRel;
             resume.status = ResumeStatus.COMPILED;
             resume.compileError = null;
+
+            const elapsed = Date.now() - startedAt;
+            this.logger.log(`Resume #${id} compiled in ${elapsed}ms → ${destRel}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Resume #${id} compile failed: ${msg.slice(0, 200)}`);
             resume.status = ResumeStatus.ERROR;
-            resume.compileError = msg.slice(0, 2000); // cap length
+            resume.compileError = msg.slice(0, 2000);
         } finally {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
+            await fsp.rm(tmpDir, { recursive: true, force: true });
         }
 
         return this.resumeRepo.save(resume);
     }
 
-    async remove(id: number, studentId: number): Promise<void> {
+    // ─── Download ─────────────────────────────────────────────────────────────
+
+    /**
+     * Returns a StreamableFile of the compiled PDF.
+     * Ownership is verified before the file is opened.
+     */
+    async getCompiledPdfStream(
+        id: number,
+        studentId: number,
+    ): Promise<{ stream: StreamableFile; filename: string }> {
         const resume = await this.findOne(id, studentId);
-        await this.resumeRepo.remove(resume);
+
+        if (!resume.compiledPdfPath || resume.status !== ResumeStatus.COMPILED) {
+            throw new BadRequestException(
+                'This resume has not been compiled yet. Run Recompile first.',
+            );
+        }
+
+        const absPath = path.join(process.cwd(), 'public', resume.compiledPdfPath);
+
+        try {
+            await fsp.access(absPath, fs.constants.R_OK);
+        } catch {
+            throw new NotFoundException('Compiled PDF not found on disk. Please recompile.');
+        }
+
+        const filename = `${resume.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+        const stream = new StreamableFile(fs.createReadStream(absPath));
+        return { stream, filename };
     }
 }

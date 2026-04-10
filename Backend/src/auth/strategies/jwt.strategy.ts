@@ -7,6 +7,11 @@ export interface JwtPayload {
     /** Subject — the student's numeric ID. */
     sub: number;
     email: string;
+    name?: string;
+    branch?: string;
+    college?: string;
+    aiCredit?: number;
+    numberOfResumes?: number;
 }
 
 /**

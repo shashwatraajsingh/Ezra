@@ -1,10 +1,19 @@
 export type ResumeStatus = "draft" | "compiled" | "error";
-export type ViewMode = "split" | "editor" | "preview";
+export type ViewMode = "form" | "editor" | "split" | "preview";
+
+export interface ResumeProjectFile {
+    id: string;
+    name: string;
+    language: "latex" | "bib" | "markdown";
+    content: string;
+}
 
 export interface ResumeData {
     id: number;
     title: string;
     latexSource: string | null;
+    fieldValues: Record<string, string> | null;
+    projectFiles: ResumeProjectFile[] | null;
     compiledPdfPath: string | null;
     atsScore: number;
     status: ResumeStatus;
@@ -12,7 +21,6 @@ export interface ResumeData {
     updatedAt: string;
 }
 
-/** Shape of each resume in the dashboard list */
 export interface ResumeSummary {
     id: number;
     title: string;

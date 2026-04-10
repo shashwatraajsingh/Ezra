@@ -10,6 +10,13 @@ import {
 import { StudentDetail } from '../../students/entities/student-detail.entity';
 import { Template } from '../../templates/entities/template.entity';
 
+export interface ResumeProjectFile {
+    id: string;
+    name: string;
+    language: 'latex' | 'bib' | 'markdown';
+    content: string;
+}
+
 export enum ResumeStatus {
     DRAFT = 'draft',
     COMPILED = 'compiled',
@@ -35,6 +42,10 @@ export class Resume {
      */
     @Column({ type: 'json', nullable: true, default: null })
     fieldValues: Record<string, string> | null;
+
+    /** Optional multi-file project workspace used by the Overleaf-style editor. */
+    @Column({ type: 'json', nullable: true, default: null, name: 'project_files' })
+    projectFiles: ResumeProjectFile[] | null;
 
     /** Path to the last successfully compiled PDF */
     @Column({ type: 'varchar', length: 500, nullable: true, default: null })

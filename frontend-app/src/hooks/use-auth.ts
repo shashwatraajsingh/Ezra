@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getToken } from "@/lib/api/auth";
+import { getToken, onAuthChanged, signOutUser } from "@/lib/api/auth";
 
 /**
  * Redirects to /auth/login if no token is present.
@@ -12,13 +12,18 @@ export function useAuth() {
     const router = useRouter();
 
     useEffect(() => {
-        if (!getToken()) {
-            router.replace("/auth/login");
-        }
+        const syncAuth = () => {
+            if (!getToken()) {
+                router.replace("/auth/login");
+            }
+        };
+
+        syncAuth();
+        return onAuthChanged(syncAuth);
     }, [router]);
 
-    const logout = () => {
-        clearAuth();
+    const logout = async () => {
+        await signOutUser();
         router.replace("/");
     };
 

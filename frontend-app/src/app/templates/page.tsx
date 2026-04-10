@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,7 +16,9 @@ import {
     Eye,
     Target,
     X,
+    FolderPlus,
 } from "lucide-react";
+import { getToken } from "@/lib/api/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TemplateKind = "prebuilt" | "user_uploaded";
@@ -35,12 +37,7 @@ interface TemplateData {
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function authHeaders() {
-    const token =
-        localStorage.getItem("access_token") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("jwt") ||
-        "";
-    return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Bearer ${getToken()}` };
 }
 
 async function fetchPrebuilt(): Promise<TemplateData[]> {
@@ -123,16 +120,13 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         if (!file || !name.trim()) { setErr("Name and file are required"); return; }
         setUploading(true); setErr(null);
         try {
-            const token = localStorage.getItem("access_token") ||
-                localStorage.getItem("token") ||
-                localStorage.getItem("jwt") || "";
             const fd = new FormData();
             fd.append("file", file);
             fd.append("name", name.trim());
             if (description) fd.append("description", description);
             const res = await fetch(`${API}/templates/upload`, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${getToken()}` },
                 body: fd,
             });
             if (!res.ok) throw new Error(await res.text());
@@ -327,7 +321,7 @@ export default function TemplatesPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const [p, m] = await Promise.all([fetchPrebuilt(), fetchMine()]);
             setPrebuilt(p);
@@ -337,15 +331,13 @@ export default function TemplatesPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        const token = localStorage.getItem("access_token") ||
-            localStorage.getItem("token") ||
-            localStorage.getItem("jwt");
+        const token = getToken();
         if (!token) { router.replace("/auth/login"); return; }
         loadData();
-    }, [router]);
+    }, [loadData, router]);
 
     const handleUse = async (tpl: TemplateData) => {
         try {
@@ -413,12 +405,20 @@ export default function TemplatesPage() {
                             <span className="font-semibold text-white">Resume Templates</span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowUpload(true)}
-                        className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-zinc-100 active:scale-95 transition-all"
-                    >
-                        <Upload className="h-4 w-4" /> Upload Template
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/projects/new"
+                            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                            <FolderPlus className="h-4 w-4" /> New Project
+                        </Link>
+                        <button
+                            onClick={() => setShowUpload(true)}
+                            className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-zinc-100 active:scale-95 transition-all"
+                        >
+                            <Upload className="h-4 w-4" /> Upload Template
+                        </button>
+                    </div>
                 </div>
             </header>
 

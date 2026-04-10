@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -29,44 +29,45 @@ const MOCK_TEMPLATES = [
     { id: 2, title: "Two-Column Modern", uploadedAt: "2025-12-05" },
 ];
 
+function getInitialStudent(): StudentData | null {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        return {
+            name: payload.name ?? "Shashwat Singh",
+            email: payload.email ?? "student@example.com",
+            branch: payload.branch ?? "Computer Science",
+            college: payload.college ?? "IIIT Allahabad",
+            numberOfResumes: payload.numberOfResumes ?? MOCK_RESUMES.length,
+            aiCredit: payload.aiCredit ?? 120,
+            createdAt: payload.iat
+                ? new Date(payload.iat * 1000).toISOString()
+                : new Date().toISOString(),
+            resume: null,
+        };
+    } catch {
+        return {
+            name: "Student",
+            email: "student@example.com",
+            branch: "Engineering",
+            college: "University",
+            numberOfResumes: 0,
+            aiCredit: 0,
+            createdAt: new Date().toISOString(),
+            resume: null,
+        };
+    }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
     const router = useRouter();
     const { logout } = useAuth();
 
-    const [student, setStudent] = useState<StudentData | null>(null);
+    const [student] = useState<StudentData | null>(() => getInitialStudent());
     const [activeTab, setActiveTab] = useState<"resumes" | "templates">("resumes");
-
-    useEffect(() => {
-        const token = getToken();
-        if (!token) return;
-        try {
-            const payload = JSON.parse(atob(token.split(".")[1]));
-            setStudent({
-                name: payload.name ?? "Shashwat Singh",
-                email: payload.email ?? "student@example.com",
-                branch: payload.branch ?? "Computer Science",
-                college: payload.college ?? "IIIT Allahabad",
-                numberOfResumes: MOCK_RESUMES.length,
-                aiCredit: 120,
-                createdAt: payload.iat
-                    ? new Date(payload.iat * 1000).toISOString()
-                    : new Date().toISOString(),
-                resume: null,
-            });
-        } catch {
-            setStudent({
-                name: "Student",
-                email: "student@example.com",
-                branch: "Engineering",
-                college: "University",
-                numberOfResumes: 0,
-                aiCredit: 0,
-                createdAt: new Date().toISOString(),
-                resume: null,
-            });
-        }
-    }, []);
 
     if (!student) {
         return (
